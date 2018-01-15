@@ -1,8 +1,7 @@
 const assert = require('assert')
 const Request = require('../src/request')
 const setup = require('./support/server')
-
-const PORT = 3000
+const {PORT, URI} = require('./config')
 
 describe('basic', function () {
   let server
@@ -15,15 +14,45 @@ describe('basic', function () {
     server.close(done)
   })
 
+  it('should get request() on .end()', function (done) {
+    const req = new Request()
+    req.method('GET', `http://${URI}/end`)
+
+    const request = req.request()
+    assert.equal(typeof request, 'undefined')
+
+    req.on('request', () => {
+      const request = req.request()
+      assert.equal(request.constructor.name, 'ClientRequest')
+      done()
+    })
+    req.end()
+  })
+
+  it('should get response() on .end()', function (done) {
+    const req = new Request()
+    req.method('GET', `http://${URI}/end`)
+
+    const response = req.response()
+    assert.equal(typeof response, 'undefined')
+
+    req.on('response', () => {
+      const response = req.response()
+      assert.equal(response.constructor.name, 'IncomingMessage')
+      done()
+    })
+    req.end()
+  })
+
   it('should request uncompressed data', function (done) {
     const req = new Request()
-    req.method('GET', `http://localhost:${PORT}/mirror`)
+    req.method('GET', `http://${URI}/echo`)
       .set('Accept-Encoding', '')
       .end((err, res) => {
         assert.ok(!err, err && err.message)
-        assert.equal(res.text, '{"url":"/mirror","method":"GET","headers":{"accept-encoding":"","host":"localhost:3000","connection":"close"}}\n')
+        assert.equal(res.text, '{"url":"/echo","method":"GET","headers":{"accept-encoding":"","host":"localhost:3000","connection":"close"}}')
         assert.deepEqual(res.body, {
-          url: '/mirror',
+          url: '/echo',
           method: 'GET',
           headers: {
             'accept-encoding': '',
@@ -37,12 +66,12 @@ describe('basic', function () {
 
   it('should request compressed data per default', function (done) {
     const req = new Request()
-    req.method('GET', `http://localhost:${PORT}/mirror`)
+    req.method('GET', `http://${URI}/echo`)
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.equal(res.headers['content-encoding'], 'gzip')
         assert.deepEqual(res.body, {
-          url: '/mirror',
+          url: '/echo',
           method: 'GET',
           headers: {
             'accept-encoding': 'gzip, deflate',
@@ -56,14 +85,14 @@ describe('basic', function () {
 
   it('should add query string to url', function (done) {
     const req = new Request()
-    req.method('GET', `http://localhost:${PORT}/mirror?test=1`)
+    req.method('GET', `http://${URI}/echo?test=1`)
       .query('test', 2)
       .query('test', 3)
       .query({foo: 'bar', '42': 'ŀ¡ƒē'})
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.deepEqual(res.body, {
-          url: '/mirror?42=%C5%80%C2%A1%C6%92%C4%93&test=1&test=2&test=3&foo=bar',
+          url: '/echo?42=%C5%80%C2%A1%C6%92%C4%93&test=1&test=2&test=3&foo=bar',
           method: 'GET',
           headers: {
             'accept-encoding': 'gzip, deflate',
@@ -77,12 +106,12 @@ describe('basic', function () {
 
   it('should set headers', function (done) {
     const req = new Request()
-    req.method('GET', `http://localhost:${PORT}/mirror`)
+    req.method('GET', `http://${URI}/echo`)
       .set({'user-agent': 'test/1.0.0', 'accept': '*/*'})
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.deepEqual(res.body, {
-          'url': '/mirror',
+          'url': '/echo',
           'method': 'GET',
           'headers': {
             'accept-encoding': 'gzip, deflate',
@@ -99,12 +128,12 @@ describe('basic', function () {
   it('should prevent sending doubled headers', function (done) {
     const req = new Request({headers: {'user-AgenT': 'lowercase/1'}})
     req
-      .method('GET', `http://localhost:${PORT}/mirror`)
+      .method('GET', `http://${URI}/echo`)
       .set({'useR-Agent': 'Cased/2', 'accept': '*/*'})
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.deepEqual(res.body, {
-          'url': '/mirror',
+          'url': '/echo',
           'method': 'GET',
           'headers': {
             'user-agent': 'Cased/2',
@@ -120,7 +149,7 @@ describe('basic', function () {
 
   it('should set multiple accept headers', function (done) {
     const req = new Request()
-    req.method('GET', `http://localhost:${PORT}/mirror`)
+    req.method('GET', `http://${URI}/echo`)
       .accept('html')
       .accept('xhtml')
       .accept('xml')
@@ -128,7 +157,7 @@ describe('basic', function () {
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.deepEqual(res.body, {
-          'url': '/mirror',
+          'url': '/echo',
           'method': 'GET',
           'headers': {
             'accept-encoding': 'gzip, deflate',
@@ -143,7 +172,7 @@ describe('basic', function () {
 
   it('should not send data with HEAD', function (done) {
     const req = new Request()
-    req.head(`http://localhost:${PORT}/mirror`)
+    req.head(`http://${URI}/echo`)
       .send('do not send')
       .end((err, res) => {
         assert.ok(!err, err && err.message)
@@ -154,12 +183,12 @@ describe('basic', function () {
 
   it('should post json with auto type', function (done) {
     const req = new Request()
-    req.post(`http://localhost:${PORT}/mirror`)
+    req.post(`http://${URI}/echo`)
       .send({test: 2, foo: ['bar', 'baz']})
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.deepEqual(res.body, {
-          url: '/mirror',
+          url: '/echo',
           method: 'POST',
           headers: {
             'accept-encoding': 'gzip, deflate',
@@ -176,13 +205,13 @@ describe('basic', function () {
 
   it('should put json', function (done) {
     const req = new Request()
-    req.put(`http://localhost:${PORT}/mirror`)
+    req.put(`http://${URI}/echo`)
       .type('json')
       .send({test: 2, foo: ['bar', 'baz']})
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.deepEqual(res.body, {
-          'url': '/mirror',
+          'url': '/echo',
           'method': 'PUT',
           'headers': {
             'accept-encoding': 'gzip, deflate',
@@ -199,13 +228,13 @@ describe('basic', function () {
 
   it('should post form data serialized', function (done) {
     const req = new Request()
-    req.post(`http://localhost:${PORT}/mirror`)
+    req.post(`http://${URI}/echo`)
       .type('form')
       .send({test: 2, foo: ['bar', 'bäz']})
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.deepEqual(res.body, {
-          'url': '/mirror',
+          'url': '/echo',
           'method': 'POST',
           'headers': {
             'accept-encoding': 'gzip, deflate',
@@ -222,12 +251,12 @@ describe('basic', function () {
 
   it('should post form data', function (done) {
     const req = new Request()
-    req.post(`http://localhost:${PORT}/mirror`)
+    req.post(`http://${URI}/echo`)
       .send('test=2&foo=bar&foo=bäz')
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.deepEqual(res.body, {
-          'url': '/mirror',
+          'url': '/echo',
           'method': 'POST',
           'headers': {
             'accept-encoding': 'gzip, deflate',
@@ -244,7 +273,7 @@ describe('basic', function () {
 
   it('should not decompress on 204', function (done) {
     const req = new Request()
-    req.get(`http://localhost:${PORT}/mirror/204`)
+    req.get(`http://${URI}/echo/204`)
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.equal(res.body, undefined)
@@ -254,7 +283,7 @@ describe('basic', function () {
 
   it('should not decompress on 304', function (done) {
     const req = new Request()
-    req.get(`http://localhost:${PORT}/mirror/304`)
+    req.get(`http://${URI}/echo/304`)
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.equal(res.body, undefined)
@@ -264,7 +293,7 @@ describe('basic', function () {
 
   it('should not decompress on content-length 0', function (done) {
     const req = new Request()
-    req.get(`http://localhost:${PORT}/content-length/0`)
+    req.get(`http://${URI}/content-length/0`)
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.equal(res.data.toString(), '')
@@ -273,23 +302,12 @@ describe('basic', function () {
       })
   })
 
-  it('should continue on zip buffer error', function (done) {
-    const req = new Request()
-    req.get(`http://localhost:${PORT}/err-zip-length`)
+  it('should get image', function (done) {
+    Request().get(`http://${URI}/static/test.png`)
       .end((err, res) => {
         assert.ok(!err, err && err.message)
-        assert.equal(res.data.length, 1007492)
-        done()
-      })
-  })
-
-  it('should end on zip error', function (done) {
-    const req = new Request()
-    req.get(`http://localhost:${PORT}/err-zip-encoding`)
-      .end((err, res) => {
-        assert.equal(err.message, 'incorrect header check')
-        assert.equal(err.code, 'Z_DATA_ERROR')
-        assert.equal(res.data.toString(), '')
+        assert.equal(res.headers['content-type'], 'image/png')
+        assert.ok(Buffer.isBuffer(res.body))
         done()
       })
   })

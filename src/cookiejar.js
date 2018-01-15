@@ -8,10 +8,11 @@ function CookieJar () {
 
 CookieJar.prototype = {
   get (opts) {
+    const hostname = opts && opts.headers && opts.headers.Host // support VHosts
     const access = !opts
       ? CookieAccessInfo.All
       : CookieAccessInfo(
-        opts.hostname,
+        hostname || opts.hostname,
         opts.pathname,
         opts.protocol === 'https:'
       )

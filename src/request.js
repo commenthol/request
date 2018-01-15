@@ -59,7 +59,7 @@ Object.assign(Request.prototype, {
   },
 
   _request () {
-    if (!this.req) {
+    if (!this.req ||  this.req.finished) {
       const opts = this.opts
       this.redirects(opts.method === 'HEAD' ? 0 : opts.redirects)
       const transport = opts.protocol === HTTPS ? https : http
@@ -234,12 +234,12 @@ Object.assign(Request.prototype, {
       stream.on('data', (chunk, encoding) => {
         this._bufferSize += chunk.length
         // protect agains zip-bombs, etc...
-        if (this._bufferSize > this._maxResponseSize) {
+        if (this._bufferSize < this._maxResponseSize) {
+          this.emit('data', chunk, encoding)
+        } else {
           this.destroy(newError('max response size reached', 'ERR_MAX_RESPONSE_SIZE'))
           stream.socket.destroy() // the only option to kill the data in the pipe - data is already received to req.abort() wont serve at all
-          return
         }
-        this.emit('data', chunk, encoding)
       })
     }
 
@@ -277,7 +277,6 @@ Object.assign(Request.prototype, {
   },
 
   end (cb) {
-    // console.log('#3', new Error().stack.split(/\n/).splice(2, 10))
     if (cb) {
       const sink = new Sink(this._parser, cb)
       this

@@ -19,14 +19,14 @@ describe('CookieJar', function () {
 
   it('should save cookie "test" for domain ".example.com"', function () {
     const jar = new CookieJar()
-    jar.save(['test=1; Domain=.example.com'], {hostname: 'auth.example.com'})
+    jar.save(['test=1; Domain=.example.com'], {hostname: 'anydomain.com'}) // 3rd Party Cookie
     const res = jar.get({hostname: 'www.example.com'})
     assert.equal(res, 'test=1')
   })
 
   it('should save cookie "test" for domain ".example.com" and path "/path"', function () {
     const jar = new CookieJar()
-    jar.save(['test=1; Domain=.example.com; Path=/path'], {hostname: 'auth.example.com', path: '/auth'})
+    jar.save(['test=1; Domain=.example.com; Path=/path'], {hostname: 'auth.example.com', pathname: '/auth'})
     const res = jar.get({hostname: 'www.example.com'})
     assert.equal(res, '')
     const res1 = jar.get({hostname: 'www.example.com', pathname: '/path/test'})

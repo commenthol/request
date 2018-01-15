@@ -6,7 +6,7 @@ const ProxyAgent = require('https-proxy-agent')
 
 const fs = require('fs')
 
-const PORT = 3000
+const {HOST, PORT, URI} = require('./config')
 const PROXY_PORT = 8080
 
 describe('proxy', function () {
@@ -29,16 +29,16 @@ describe('proxy', function () {
     })
 
     it('should proxy http request', function (done) {
-      const agent = new ProxyAgent({host: 'localhost', port: PROXY_PORT})
+      const agent = new ProxyAgent({host: HOST, port: PROXY_PORT})
       const req = new Request({agent})
       req
-        .method('GET', `http://localhost:${PORT}/mirror`)
+        .method('GET', `http://${URI}/echo`)
         .set({'useR-Agent': 'Cased/2'})
         .accept('*/*')
         // .set('Accept-Encoding', 'nada')
         .end((err, res) => {
           assert.ok(!err, err && err.message)
-          assert.equal(res.data.toString(), '{"url":"/mirror","method":"GET","headers":{"accept-encoding":"gzip, deflate","user-agent":"Cased/2","accept":"*/*","host":"localhost:3000","connection":"close"}}\n')
+          assert.equal(res.data.toString(), '{"url":"/echo","method":"GET","headers":{"accept-encoding":"gzip, deflate","user-agent":"Cased/2","accept":"*/*","host":"localhost:3000","connection":"close"}}')
           done()
         })
     })
@@ -62,16 +62,16 @@ describe('proxy', function () {
     })
 
     it('should proxy https request', function (done) {
-      const agent = new ProxyAgent({host: 'localhost', port: PROXY_PORT, ca})
+      const agent = new ProxyAgent({host: HOST, port: PROXY_PORT, ca})
       const req = new Request()
       req
         .agent(agent)
-        .method('GET', `https://localhost:${PORT}/mirror`)
+        .method('GET', `https://${URI}/echo`)
         .set({'useR-Agent': 'Cased/2'})
         .accept('*/*')
         .end((err, res) => {
           assert.ok(!err, err && err.message)
-          assert.equal(res.data.toString(), '{"url":"/mirror","method":"GET","headers":{"accept-encoding":"gzip, deflate","user-agent":"Cased/2","accept":"*/*","host":"localhost:3000","connection":"close"}}\n')
+          assert.equal(res.data.toString(), '{"url":"/echo","method":"GET","headers":{"accept-encoding":"gzip, deflate","user-agent":"Cased/2","accept":"*/*","host":"localhost:3000","connection":"close"}}')
           done()
         })
     })

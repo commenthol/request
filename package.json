@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "asyncc": "^2.0.1",
+    "express": "^4.16.2",
     "mocha": "^4.1.0",
     "nyc": "^11.4.1",
     "streamss-through": "^0.2.1"

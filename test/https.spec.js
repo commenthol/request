@@ -2,10 +2,9 @@ const fs = require('fs')
 const assert = require('assert')
 const Request = require('../src/request')
 const setup = require('./support/server')
+const {PORT, URI} = require('./config')
 
 const ca = fs.readFileSync(`${__dirname}/fixtures/root_ca.crt`)
-
-const PORT = 3000
 
 describe('https', function () {
   let server
@@ -20,7 +19,7 @@ describe('https', function () {
 
   it('should fail with self-signed-cert', function (done) {
     const req = new Request()
-    req.get(`https://localhost:${PORT}/mirror`)
+    req.get(`https://${URI}/echo`)
       .end((err, res) => {
         assert.equal(err.code, 'UNABLE_TO_VERIFY_LEAF_SIGNATURE')
         assert.equal(err.message, 'unable to verify the first certificate')
@@ -31,24 +30,24 @@ describe('https', function () {
 
   it('should not reject self-signed-cert', function (done) {
     const req = new Request()
-    req.get(`https://localhost:${PORT}/mirror`)
+    req.get(`https://${URI}/echo`)
       .rejectUnauthorized(false)
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.equal(res.headers['content-encoding'], 'gzip')
-        assert.equal(res.data.toString(), '{"url":"/mirror","method":"GET","headers":{"accept-encoding":"gzip, deflate","host":"localhost:3000","connection":"close"}}\n')
+        assert.equal(res.data.toString(), '{"url":"/echo","method":"GET","headers":{"accept-encoding":"gzip, deflate","host":"localhost:3000","connection":"close"}}')
         done()
       })
   })
 
   it('should request data with ca cert', function (done) {
     const req = new Request()
-    req.get(`https://localhost:${PORT}/mirror`)
+    req.get(`https://${URI}/echo`)
       .ca(ca)
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.equal(res.headers['content-encoding'], 'gzip')
-        assert.equal(res.data.toString(), '{"url":"/mirror","method":"GET","headers":{"accept-encoding":"gzip, deflate","host":"localhost:3000","connection":"close"}}\n')
+        assert.equal(res.data.toString(), '{"url":"/echo","method":"GET","headers":{"accept-encoding":"gzip, deflate","host":"localhost:3000","connection":"close"}}')
         done()
       })
   })

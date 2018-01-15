@@ -27,7 +27,7 @@ function isText (mime = '') {
 
 function isUrlEncoded (mime = '') {
   const subType = mime.split('/')[1]
-  return subType === 'x-www-form-urlencoded'
+  return String(subType).indexOf('x-www-form-urlencoded') === 0
 }
 
 function isJson (mime) {

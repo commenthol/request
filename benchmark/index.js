@@ -42,10 +42,11 @@ class Time {
 const time1 = new Time('superag')
 
 const test1 = (num, cb) => {
+  const httpAgent = new http.Agent({keepAlive: true})
   const agent = superagent.agent()
   time1.start()
   times(num, (cb) => {
-    agent.get(url).end(cb)
+    agent.get(url).agent(httpAgent).end(cb)
   }, (err) => {
     time1.lap()
     cb(err)

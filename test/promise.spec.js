@@ -1,8 +1,7 @@
 const assert = require('assert')
 const Request = require('../src/request')
 const setup = require('./support/server')
-
-const PORT = 3000
+const {PORT, URI} = require('./config')
 
 describe('promise', function () {
   let server
@@ -17,11 +16,11 @@ describe('promise', function () {
 
   it('should request', function () {
     const req = new Request()
-    return req.method('GET', `http://localhost:${PORT}/mirror`)
+    return req.method('GET', `http://${URI}/echo`)
       .then((res) => {
         assert.equal(res.headers['content-encoding'], 'gzip')
         assert.deepEqual(res.body, {
-          url: '/mirror',
+          url: '/echo',
           method: 'GET',
           headers: {
             'accept-encoding': 'gzip, deflate',
@@ -37,11 +36,11 @@ describe('promise', function () {
 
   it('should post', function () {
     const req = new Request()
-    return req.post(`http://localhost:${PORT}/mirror`)
+    return req.post(`http://${URI}/echo`)
       .send({test: 2, foo: ['bar', 'baz']})
       .then((res) => {
         assert.deepEqual(res.body, {
-          url: '/mirror',
+          url: '/echo',
           method: 'POST',
           headers: {
             'accept-encoding': 'gzip, deflate',
@@ -56,8 +55,8 @@ describe('promise', function () {
   })
 
   it('should catch', function () {
-    const req = new Request()
-    return req.method('GET', `http://localhost:${PORT}/err-destroy`)
+    const req = Request()
+    return req.method('GET', `http://${URI}/errors/destroy`)
       .catch((err) => {
         assert.ok(err)
         assert.equal(err.message, 'socket hang up')
