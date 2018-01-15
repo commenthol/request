@@ -63,8 +63,9 @@ describe('proxy', function () {
 
     it('should proxy https request', function (done) {
       const agent = new ProxyAgent({host: 'localhost', port: PROXY_PORT, ca})
-      const req = new Request({agent})
+      const req = new Request()
       req
+        .agent(agent)
         .method('GET', `https://localhost:${PORT}/mirror`)
         .set({'useR-Agent': 'Cased/2'})
         .accept('*/*')

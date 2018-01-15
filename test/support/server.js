@@ -1,6 +1,7 @@
 /* eslint no-console:0 */
 
 const fs = require('fs')
+const qs = require('querystring')
 const {parse} = require('url')
 const http = require('http')
 const https = require('https')
@@ -44,6 +45,12 @@ function setup (opts = {}) {
         }
         res.setHeader('Content-Type', 'application/json')
         raw.write(JSON.stringify(o))
+      } else if ((m = /^\/set-cookie(?:\/(\d{3}))?/.exec(url))) {
+        if (m[1]) res.statusCode = +(m[1])
+        else res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.setHeader('Set-Cookie', setCookieFromQuery(url))
+        raw.write(JSON.stringify(o))
       } else if ((m = /^\/content-length\/(\d+)/.exec(url))) {
         const buffer = Array(+m[1]).fill('a').join('')
         res.setHeader('Content-Length', buffer.length || 0)
@@ -74,7 +81,7 @@ function setup (opts = {}) {
       } else if (/^\/err-timeout/.test(url)) {
         return
       } else if (/^\/err-zip-length/.test(url)) {
-        fs.readFile(bomb, (err, buffer) => {
+        fs.readFile(bomb, (_, buffer) => {
           res.setHeader('Content-Encoding', 'gzip')
           res.write(buffer.slice(0, 1000))
           res.end()
@@ -111,6 +118,22 @@ function setup (opts = {}) {
 }
 
 if (require.main === module) {
-  const type = 'https'
-  setup({type}).listen(3000)
+  const argv = process.argv.slice(2)
+  const port = argv[0] || 3000
+  const type = argv[1] || 'http'
+  setup({type}).listen(port)
+}
+
+function setCookieFromQuery (url) {
+  const opts = parse(url)
+  const {name, value, path, expires, domain, httpOnly, secure} = qs.parse(opts.query)
+  // console.log({name, value, path, expires, domain, httpOnly, secure})
+  const cookie = [`${name || 'name'}=${value || 'value'}`]
+  if (expires) cookie.push('Expires=' + new Date(+expires).toUTCString())
+  if (path) cookie.push(`Path=${path}`)
+  if (domain) cookie.push(`Domain=${domain}`)
+  if (httpOnly) cookie.push('HttpOnly')
+  if (secure) cookie.push('Secure')
+  const str = cookie.join('; ')
+  return str
 }

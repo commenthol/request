@@ -8,6 +8,7 @@ const mime = require('mime')
 const {parse, format, resolve} = require('url')
 const Sink = require('./sink')
 const {HTTPS, headerCase} = require('./utils')
+const CookieJar = require('./cookiejar')
 
 mime.define({ 'application/x-www-form-urlencoded': ['form'] })
 
@@ -17,6 +18,7 @@ module.exports = Request
 * @param {Object} options
 * @param {Number=5} [options.maxRedirects] -
 * @param {Number=200000000} [options.maxResponseSize] -
+* @param {CookieJar} [options.cookieJar]
 * @see https://nodejs.org/api/http.html#http_http_request_options_callback
 * @see https://nodejs.org/api/https.html#https_https_request_options_callback
 */
@@ -29,8 +31,10 @@ function Request (options) {
   // require('./_events')('Request', this) // DEBUG
 
   this.opts = Object.assign({}, options)
+  this._cookieJar = this.opts.cookieJar || new CookieJar()
+  delete this.opts.cookieJar
 
-  this._maxRedirects = this.opts.maxRedirects || 5 // number of max redirects
+  this.opts.redirects = this.opts.redirects || 5 // number of max redirects
   this._maxResponseSize = this.opts.maxResponseSize || 200000000 // max. allowed buffer size
   // this.req {http.ClientRequest} the request
   // this.res {http.IncomingMessage} the response
@@ -57,14 +61,17 @@ Object.assign(Request.prototype, {
   _request () {
     if (!this.req) {
       const opts = this.opts
-      this.redirects(opts.method === 'HEAD' ? 0 : this._maxRedirects)
+      this.redirects(opts.method === 'HEAD' ? 0 : opts.redirects)
       const transport = opts.protocol === HTTPS ? https : http
+      this._getCookies()
       this.req = transport.request(opts)
+      delete opts.headers.Cookie // reset for next req
       this.req.setNoDelay(true)
       this.req.once('response', this._response.bind(this))
       this.req.once('timeout', () => {
         this.destroy(newError('socket timed out', 'ETIMEDOUT'))
       })
+      this.req.once('drain', this.emit.bind(this, 'drain'))
       this.req.on('error', this.emit.bind(this, 'error'))
       this.emit('request', this.req)
       this._bufferSize = 0
@@ -78,10 +85,25 @@ Object.assign(Request.prototype, {
     this.set(headers)
   },
 
+  _getCookies () {
+    const opts = this.opts
+    const cookies = opts.headers.Cookie // {Array|String}
+    if (cookies) {
+      this._setCookies(cookies, opts) // inital set of cookies in jar
+    }
+    const _cookies = this._cookieJar.get(opts)
+    if (_cookies) this.set('Cookie', _cookies)
+  },
+
+  _setCookies (setCookieHeader, opts) {
+    this._cookieJar.save(setCookieHeader, opts)
+  },
+
   method (method, url) {
+    delete this.req // make sure we get a new request
     const opts = this.opts
     this._method = method = method.toUpperCase()
-    const parsed = parse(url)
+    const parsed = url ? parse(url) : {}
     parsed.method = method
     Object.assign(opts, parsed, {method})
     if (this._method !== 'HEAD') {
@@ -103,14 +125,12 @@ Object.assign(Request.prototype, {
   },
 
   set (header = {}, value) {
-    if (!this.opts.headers) this.opts.headers = {}
-    if (typeof header === 'object') {
-      Object.keys(header).forEach((k) => {
-        this.opts.headers[headerCase(k)] = String(header[k])
-      })
-    } else {
-      this.opts.headers[headerCase(header)] = String(value)
+    if (typeof header !== 'object') {
+      header = {[String(header)]: value}
     }
+    Object.keys(header).forEach((k) => {
+      this.opts.headers[headerCase(k)] = String(header[k])
+    })
     return this
   },
 
@@ -137,7 +157,7 @@ Object.assign(Request.prototype, {
     const opts = this.opts
     const _query = qs.parse(opts.query)
     if (typeof query === 'string') {
-      query = {[query]: value}
+      query = {[String(query)]: value}
     }
     Object.keys(query).forEach((key) => {
       const value = query[key]
@@ -156,16 +176,6 @@ Object.assign(Request.prototype, {
     return this
   },
 
-  timeout (ms) {
-    this.opts.timeout = ms
-    return this
-  },
-
-  redirects (num) {
-    this.opts.maxRedirects = num
-    return this
-  },
-
   _redirect (res) {
     let err
     let {location} = res.headers
@@ -173,7 +183,7 @@ Object.assign(Request.prototype, {
 
     if (!location) {
       err = newError('no location header for redirect', 'ERR_NO_LOCATION')
-    } else if (this._redirectList.length === this.opts.maxRedirects) {
+    } else if (this._redirectList.length === this.opts.redirects) {
       err = newError('max redirects reached', 'ERR_MAX_REDIRECTS')
     }
     if (err) {
@@ -195,7 +205,6 @@ Object.assign(Request.prototype, {
         break
     }
 
-    this.req = null
     this.method(this._method, location)
     this._request().end()
   },
@@ -206,6 +215,8 @@ Object.assign(Request.prototype, {
     res._redirectList = this._redirectList
 
     // require('./_events')('Response', this) // DEBUG
+
+    this._setCookies(res.headers['set-cookie'], this.opts)
 
     if (isRedirect(res)) {
       this._redirect(res)
@@ -266,6 +277,7 @@ Object.assign(Request.prototype, {
   },
 
   end (cb) {
+    // console.log('#3', new Error().stack.split(/\n/).splice(2, 10))
     if (cb) {
       const sink = new Sink(this._parser, cb)
       this
@@ -278,13 +290,15 @@ Object.assign(Request.prototype, {
   },
 
   then (resolve, reject) {
-    const promise = new Promise((_resolve, _reject) => { // eslint-disable-line promise/param-names
+    return new Promise((_resolve, _reject) => { // eslint-disable-line promise/param-names
       this.end((err, res) => {
-        if (err) _reject(err)
-        else _resolve(res)
+        if (err) {
+          _reject(err)
+        } else {
+          _resolve(res)
+        }
       })
-    })
-    return promise.then(resolve, reject)
+    }).then(resolve, reject)
   },
 
   catch (reject) {
@@ -292,13 +306,35 @@ Object.assign(Request.prototype, {
   }
 })
 
+// set option helpers
+;[
+  'agent', // {http.Agent|https.Agent}
+  'timeout', // {Number} timeout in ms
+  'redirects', // {Number} max redirects (default=5)
+  // https only - @see https://nodejs.org/api/https.html#https_https_request_options_callback
+  'ca', 'cert', 'key', 'passphrase', 'pfx', // {String} TLS options
+  'rejectUnauthorized', // {Boolean} (default=false)
+  'secureProtocol', 'servername'
+].forEach((m) => {
+  _hasPrototype(m)
+  Request.prototype[m] = function (opt) {
+    this.opts[m] = opt
+    return this
+  }
+})
+
+// set http methods
 http.METHODS.forEach((method) => {
   const m = method.toLowerCase()
-  if (Request.prototype[m]) throw new Error(`Request.prototype[${m}] exists`) // safety belt
+  _hasPrototype(m)
   Request.prototype[m] = function (url) {
     return this.method(method, url)
   }
 })
+
+function _hasPrototype (m) {
+  if (Request.prototype[m]) throw new Error(`Request.prototype[${m}] exists`) // safety belt
+}
 
 function isCompressed (res) {
   if (res.statusCode === 204 ||

@@ -7,15 +7,16 @@ function Sink (parser, callback) {
   Writable.call(this)
 
   // require('./_events')('Sink', this) // DEBUG
-
-  this.callback = callback
-  this.parser = parser
-  this.data = []
-
+  Object.assign(this, {
+    callback,
+    parser,
+    data: [],
+    _ended: 0
+  })
   this.on('response', (res) => {
     this.res = res
   })
-  this.once('error', (err) => {
+  this.on('error', (err) => {
     this.end(err)
   })
 }
@@ -27,8 +28,7 @@ Object.assign(Sink.prototype, {
   },
 
   end (err) {
-    if (this._wasEnd) return
-    this._wasEnd = true
+    if (this._ended++) return // call end only once
     const res = this.res
     if (res) res.data = Buffer.concat(this.data)
     factory(this.parser, res, (_err) => {

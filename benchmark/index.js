@@ -68,7 +68,7 @@ const test2 = (num, cb) => {
 const NUM = 2000
 let run
 series([
-  (cb) => { run = server.listen(PORT, cb)},
+  (cb) => { run = server.listen(PORT, cb) },
   test1.bind(test1, NUM),
   test2.bind(test2, NUM),
   test2.bind(test2, NUM),

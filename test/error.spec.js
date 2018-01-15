@@ -17,7 +17,7 @@ describe('errors', function () {
 
   it('should return error for unresolved host', done => {
     new Request().get('http://edd11caaf727d6a38d4e928bdb').end((err, res) => {
-      assert.equal(err.code, 'ENOTFOUND')
+      assert.ok(~['EAI_AGAIN', 'ENOTFOUND'].indexOf(err.code))
       assert.ok(err.message, 'getaddrinfo ENOTFOUND edd11caaf727d6a38d4e928bdb edd11caaf727d6a38d4e928bdb:80')
       assert.equal(res, undefined)
       done()

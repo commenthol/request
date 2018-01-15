@@ -30,8 +30,9 @@ describe('https', function () {
   })
 
   it('should not reject self-signed-cert', function (done) {
-    const req = new Request({rejectUnauthorized: false})
+    const req = new Request()
     req.get(`https://localhost:${PORT}/mirror`)
+      .rejectUnauthorized(false)
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.equal(res.headers['content-encoding'], 'gzip')
@@ -41,8 +42,9 @@ describe('https', function () {
   })
 
   it('should request data with ca cert', function (done) {
-    const req = new Request({ca})
+    const req = new Request()
     req.get(`https://localhost:${PORT}/mirror`)
+      .ca(ca)
       .end((err, res) => {
         assert.ok(!err, err && err.message)
         assert.equal(res.headers['content-encoding'], 'gzip')
